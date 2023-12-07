@@ -1,0 +1,1 @@
+/* 182 */console.log((c = 0, require("fs").readFileSync("f", "utf8").split`\n`.map(l => ([a, b] = l.split`,`.map(e => e.split`-`.map(v => +v)), (a[0] >= b[0] && a[1] <= b[1]) || (b[0] >= a[0] && b[1] <= a[1]) ? c++ : 0)), c))

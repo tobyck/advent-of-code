@@ -1,0 +1,43 @@
+let updateTail = (tail, head) => {
+    let ret = new Vec(tail.x, tail.y)
+
+    if (head.y == tail.y) {
+        if (tail.x < head.x) {
+            ret = new Vec(head.x - 1, head.y)
+        } else {
+            ret = new Vec(head.x + 1, head.y)
+        }
+    } else if (head.x == tail.x) {
+        if (tail.y < head.y) {
+            ret = new Vec(head.x, head.y - 1)
+        } else {
+            ret = new Vec(head.x, head.y + 1)
+        }
+    } else {
+        while (!ret.touching(head)) {
+            if (tail.x < head.x) {
+                if (tail.y < head.y) {
+                    ret.x++
+                    ret.y++
+                } else if (tail.y > head.y) {
+                    ret.x++
+                    ret.y--
+                }
+            } else if (tail.x > head.x) {
+                if (tail.y < head.y) {
+                    ret.x--
+                    ret.y++
+                } else if (tail.y > head.y) {
+                    ret.x--
+                    ret.y--
+                }
+            }
+        }
+    }
+
+    if (!positions.some(v => Vec.eq(v, ret))) {
+        positions.push(ret)
+    }
+
+    return ret
+}

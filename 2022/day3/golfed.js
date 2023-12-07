@@ -1,0 +1,2 @@
+/* 197 */ console.log(require("fs").readFileSync("f", "utf8").split`\n`.map(l => (c = l.split``, g = [c.splice(0, l.length / 2), c], m = g[0].filter(c => g[1].includes(c))[0].charCodeAt(0), m - 96 + (m < 91) * 58)).reduce((a, c) => a + c))
+/* 149 as function */ i => i.split`\n`.map(l => (c = l.split``, g = [c.splice(0, l.length / 2), c], m = g[0].filter(c => g[1].includes(c))[0].charCodeAt(0), m - 96 + (m < 91) * 58)).reduce((a, c) => a + c)
