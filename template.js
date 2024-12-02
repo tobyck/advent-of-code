@@ -1,6 +1,7 @@
-const fs = require("fs");
-const { _, __ } = require("../../lib");
-const input = fs.readFileSync(process.argv[2], "utf8");
+import { readFileSync } from "fs";
+import { it, get } from "../../lib";
+let input = readFileSync(process.argv[2], "utf8");
+let lines = input.lines();
 
-const lines = input.lines();
-
+lines
+.print()

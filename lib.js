@@ -1,25 +1,40 @@
 /*
  * Author: Toby Connor-Kebbell
  * Date: 12/2023
- * 
- * This library provides a collection of useful functions and methods primarily 
- * for Advent of Code, but also for other tasks. Some functions have been added
- * to the prototypes of built-in objects, others are global functions which are
- * added to the globalThis object. The library also provides the _ and __
- * variables which have proxies on them to allow for tacit programming. The
- * Single underscore begins are tacit chain of functions (e.g. _.trim().words()
- * is a function which trims a string then splits it on whitespace). The double
- * underscore is for getting properties (e.g. __.items[3].name is a function
- * which accesses the name property of the 4th item in an array called "items").
- * Global functions which this library provides have two other variants besides
- * the normal one. The first is the _ variant, which is a curried version of the
- * original (i.e. _eq(3) returns a function which checks if a value equals 3).
- * The second is $, which is also curried but takes its arguments as functions.
- * For example, $eq(_.rev()) returns a function which checks if x equals x when
- * reversed: x => eq(x, x.rev()). These two variants can also be chained like
- * the tacit chains with _ and __. For example, $eq(_.rev()).str() does the same
- * thing but returns the boolean as a string instead.
+ *
+ * `it` can be used to make tacit function chains:
+ *     [12, 5, 7, 4, 10, 9].map(it.mul(Math.random()).str().rev()[0].int())
+ *     multiplies each number by a random float, converts it to a string,
+ *     reverses it, gets the first char, and converts that back to an int.
+ *     When the first function in the chain isn't also global, the `it.` can
+ *     be omitted.
+ *
+ * `get` works similarly, but the chain can only get properties:
+ *     get.some_prop[3].x is a function which gets the "x" property of the item
+ *     at index 3 in the "some_prop" field.
+ *
+ * All methods have an global variant prefixed with an underscore:
+ *     [1, 2, 3].sum() can also be _sum([1, 2, 3])
+ *
+ * All global functions (including those derived from methods like .sum()) have
+ * three other variants. using `eq` as an example, these are:
+ *     it.eq(x) -> x => eq(x, y)
+ *     $eq(f) -> x => eq(x, f(x))
+ *     $$eq() -> args => eq(...args)
+ * All of which are chainable like with `it`.
  */
+
+globalThis.range = function(a, b = 0, step = 1) {
+	let start = 0, end = a
+	if (arguments.length > 1) {
+		start = a
+		end = b
+	}
+	const ret = [];
+	for (let n = start; n < end; n += step)
+		ret.push(n)
+	return ret
+}
 
 // array methods
 
@@ -29,13 +44,35 @@ Array.prototype.sum = function() { return this.reduce((acc, cur) => acc + cur) }
 Array.prototype.prod = function() { return this.reduce((acc, cur) => acc * cur) };
 Array.prototype.first = function() { return this[0] };
 Array.prototype.last = function() { return this[this.length - 1] };
+Array.prototype.nthlast = function(n) { return this[this.length - n] };
+Array.prototype.dropnth = function(i) { this.splice((i % this.length + this.length) % this.length, 1); return this };
+Array.prototype.droplast = function() { return this.dropnth(-1) };
 Array.prototype.len = function() { return this.length }
 Array.prototype.for = Array.prototype.forEach
 Array.prototype.uniq = function() { return [...new Set(this)] }
-Array.prototype.min = function() { return Math.min(...this.filter(isNum)) }
-Array.prototype.max = function() { return Math.max(...this.filter(isNum)) }
+Array.prototype.min = function() { return Math.min(...this.filter(isnum)) }
+Array.prototype.max = function() { return Math.max(...this.filter(isnum)) }
 Array.prototype.print = function() { console.log(this); return this; }
 Array.prototype.set = function() { return new Set(this) }
+Array.prototype.nsort = function() { return this.sort((a, b) => a - b) }
+Array.prototype.append = function(x) { this.push(x); return this }
+Array.prototype.prepend = function(x) { this.unshift(x); return this }
+Array.prototype.alleq = function() { return this.every(v => eq(v, this[0])) }
+Array.prototype.mapi = function(f) { return this.map((_, i) => f(i)) }
+Array.prototype.indicies = function() { return range(this.length) }
+
+Array.prototype.sliding = function(size = 2, loop = false) {
+	const x = loop ? this.concat(this.slice(0, size - 1)) : this
+	return x.slice(0, -size + 1).map((_, i) => x.slice(i, i + size))
+}
+
+Array.prototype.chunks = function(size = 2) {
+	const ret = []
+	for (let i = 0; i < this.length; i += size) {
+		ret.push(this.slice(i, i + size))
+	}
+	return ret
+}
 
 Array.prototype.step = function(n) {
     const first = this[0];
@@ -49,36 +86,26 @@ Array.prototype.step = function(n) {
 }
 
 Array.prototype.at = function(i) {
-    if (isInt(i)) {
+    if (isint(i)) {
         return this[((i + this.length) % this.length + this.length) % this.length];
-    } else if (isArr(i) && i.every(isInt)) {
+    } else if (isarr(i) && i.every(isint)) {
         const ret = [];
         for (const index of i) ret.push(this.at(index));
         return ret;
     }
 }
 
-Array.prototype.count = function(f) {
-    return this.filter(x => f(x)).length;
+Array.prototype.count = function(c) {
+	if (typeof c === "function") return this.filter(x => c(x)).length;
+	else return this.filter(x => eq(x, c)).length;
 }
 
-Array.prototype.filterOut = function(f) { // (in-place)
-    for (let i = 0; i < this.length; i++) {
-        if (f(this[i], i, this)) {
-            this.splice(i, 1);
-            i--;
-        }
-    }
-}
-
-Array.prototype.filteredOut = function(f) { // (not in-place)
+Array.prototype.filterout = function(f) {
     return this.filter((x, i, a) => !f(x, i, a));
 }
 
-Array.prototype.mapInPl = function(f) {
-    for (let i = 0; i < this.length; i++) {
-        this[i] = f(this[i], i, this);
-    }
+Array.prototype.where = function(f) { // (not in-place)
+    return this.filter((x, i, a) => f(x, i, a));
 }
 
 Array.prototype.deltas = function() {
@@ -109,6 +136,7 @@ String.prototype.len = function() { return this.length }
 String.prototype.at = function(i) { return this.split("").at(i) }
 String.prototype.count = function(x) { return this.split("").count(x) }
 String.prototype.csv = function() { return this.split(",").map(x => x.trim()) }
+String.prototype.ssv = function() { return this.split(/\s+/).map(x => x.trim()) }
 String.prototype.isDigit = function() { return /^\d$/.test(this) }
 String.prototype.print = function() { console.log(this.valueOf()); return this.valueOf(); }
 
@@ -122,7 +150,7 @@ Number.prototype.to = function(n) {
     return range;
 };
 
-Number.prototype.downTo = function(n) {
+Number.prototype.downto = function(n) {
     const range = [];
     for (let i = this.valueOf(); i >= n; i--) {
         range.push(i)
@@ -132,6 +160,23 @@ Number.prototype.downTo = function(n) {
 
 Number.prototype.str = function() { return this.toString() }
 Number.prototype.int = function() { return this.str().int() }
+Number.prototype.add = function(n) { return this + n }
+Number.prototype.sub = function(n) { return this - n }
+Number.prototype.mul = function(n) { return this * n }
+Number.prototype.div = function(n) { return this / n }
+Number.prototype.mov = function(n) { return this % n }
+Number.prototype.exp = function(e, m = null) {
+	if (m) {
+		// naive solution but it does the job
+		if (m == 1) return 0
+		let ret = 1
+		for (let i = 0; i < e; i++)
+		ret = (ret * this) % m
+		return ret
+	} else return this ** e
+}
+Number.prototype.absdiff = function(n) { return Math.abs(this - n) }
+Number.prototype.floordiv = function(n) { return Math.floor(this / n) }
 Number.prototype.eq = function(n) { return this.valueOf() === n }
 Number.prototype.gt = function(n) { return this.valueOf() > n }
 Number.prototype.lt = function(n) { return this.valueOf() < n }
@@ -164,6 +209,10 @@ Object.prototype.do = function(k, f, d) {
 Set.prototype.len = function() { return this.size }
 Set.prototype.print = function() { console.log(this); return this; }
 Set.prototype.arr = function() { return [...this] }
+// these should work on any iterable
+Set.prototype.union = function(other) { return new Set([...this, ...other]).arr(); }
+Set.prototype.intersect = function(other) { return new Set(this).arr().filter(x => other.set().has(x)); }
+Set.prototype.diff = function(other) { return new Set(this).arr().filter(x => !other.set().has(x)); }
 
 class _Set extends Set {
     constructor(iterable) {
@@ -173,8 +222,6 @@ class _Set extends Set {
     add(item) { super.add((JSON.stringify(item))) }
     has(item) { return super.has(JSON.stringify(item)) }
     delete(item) { return super.delete(JSON.stringify(item)) }
-    arr() { return [...this].map(x => JSON.parse(x)) }
-    len() { return this.size }
 
     print() {
         console.log(this.arr());
@@ -182,9 +229,8 @@ class _Set extends Set {
     }
 
     *[Symbol.iterator]() {
-        for (const item of this) {
-            yield JSON.parse(item);
-        }
+		for (const item of this)
+			yield JSON.parse(item);
     }
 }
 
@@ -195,50 +241,29 @@ Boolean.prototype.str = function() { return this.valueOf().toString() }
 Boolean.prototype.int = function() { return this.valueOf() ? 1 : 0 }
 Boolean.prototype.print = function() { console.log(this.valueOf()); return this.valueOf(); }
 
-const getterProxy = (func, getter) => new Proxy(func, {
-    get: getter
-});
-
-// tacit-ish stuff (fc for func chain)
-globalThis.fc = func => getterProxy(
-    func, 
-    (target, prop) => {
-        if (isInt(num(prop))) return globalThis.fc((...x) => target(...x)[prop]);
-        else return (...args) => globalThis.fc((...x) => target(...x)[prop](...args));
-    }
-);
-
-// similar to _ but only for getting properties
-const getterChain = func => getterProxy(func, (target, prop) => getterChain(x => target(x)[prop]));
-
-module.exports = {
-    _: fc(x => x),
-    __: getterChain(x => x)
-};
-
 globalThis.eq = (a, b) => {
-    if (isArr(a) && isArr(b)) {
+    if (isarr(a) && isarr(b)) {
         if (a.len() !== b.len()) return false;
         for (let i = 0; i < a.len(); i++) {
             if (!eq(a[i], b[i])) return false;
         }
         return true;
-    } else if (isStr(a) && isStr(b)) return a === b;
-    else if (isNum(a) && isNum(b)) return a === b;
+    } else if (isstr(a) && isstr(b)) return a === b;
+    else if (isnum(a) && isnum(b)) return a === b;
         
     return false;
 };
 
 // type checks
-globalThis.isInt = Number.isInteger;
-globalThis.isFloat = x => typeof x === "number" && !Number.isInteger(x);
-globalThis.isNum = x => typeof x === "number";
-globalThis.isArr = Array.isArray;
-globalThis.isStr = x => typeof x === "string";
+globalThis.isint = Number.isInteger;
+globalThis.isfloat = x => typeof x === "number" && !Number.isInteger(x);
+globalThis.isnum = x => typeof x === "number";
+globalThis.isarr = Array.isArray;
+globalThis.isstr = x => typeof x === "string";
 
 // type conversions
 globalThis.int = x => parseInt(x);
-globalThis.intBaseN = (x, n) => parseInt(x, n);
+globalThis.intbasen = (x, n) => parseInt(x, n);
 globalThis.float = x => parseFloat(x);
 globalThis.num = x => {
     try {
@@ -249,8 +274,8 @@ globalThis.num = x => {
 }
 globalThis.bool = x => !!x;
 globalThis.str = x => `${x}`;
-globalThis.arr = x => isInt(x) ? Array(x).fill() : Array.from(x);
-globalThis.set = x => new Set(x)
+globalThis.arr = x => isint(x) ? Array(x).fill() : Array.from(x);
+globalThis.set = x => new _Set(x)
 
 // misc
 globalThis.truthy = x => ![undefined, null, false, 0, "", NaN].includes(x);
@@ -266,7 +291,6 @@ globalThis.zip = (...args) => {
     }
     return ret;
 }
-globalThis.floordiv = (a, b) => Math.floor(a / b);
 globalThis.bfs = (start, end, neighbours) => {
     const visited = new _Set();
     const queue = [[start]];
@@ -285,27 +309,50 @@ globalThis.bfs = (start, end, neighbours) => {
     return null
 }
 
-// set operations which should work on any iterable
-globalThis.union = (a, b) => new Set([...a, ...b]).arr();
-globalThis.intersect = (a, b) => new Set(a).arr().filter(x => b.set().has(x));
-globalThis.diff = (a, b) => new Set(a).arr().filter(x => !b.set().has(x));
+// proxies
+
+const getterProxy = (func, getter) => new Proxy(func, { get: getter });
+
+const funcChain = func => getterProxy(
+	func, 
+	(target, prop) => {
+		if (isint(num(prop))) return funcChain(mainArg => target(mainArg)[prop])
+		else return (...args) => funcChain(mainArg => target(mainArg)[prop](...args))
+	}
+);
+
+const getterChain = func => getterProxy(func, (target, prop) => getterChain(x => target(x)[prop]));
+
+export const it = funcChain(x => x);
+export const get = getterChain(x => x);
+
+// turn methods into functions as well
+
+for (const type of [Number, String, Array, Set, Object])
+	for (const method in type.prototype)
+		if (!(method in globalThis)) {
+			globalThis[method] = (...args) => funcChain(x => x[method](...args))
+			globalThis["_" + method] = (x, ...rest) => x[method](...rest)
+		}
 
 // curry
-for (const [name, func] of globalThis.entries()) {
-    if (typeof func === "function") {
-        globalThis["_" + name] = (...args) => fc(x => func(x, ...args))
+for (let [name, func] of globalThis.entries()) {
+    if (typeof func === "function" && name[0] == "_") {
+		name = name.slice(1)
+
+		// first arg curried
+        it[name] = (...args) => funcChain(x => func(x, ...args))
+
+		// first arg curried, but takes args as functions
         globalThis["$" + name] = (...funcs) => {
-            return fc((...args) => {
+            return funcChain((...args) => {
                 // i'm not even gonna try to explain this
                 const a = [args[0], ...funcs.map(f => f(...args.slice(0, func.length)))]
                 return func(...a.slice(-func.length))
             })
         }
+
+		// takes args as a list
+		globalThis["$$" + name] = () => funcChain(args => func(...args))
     }
 }
-
-// tests
-// let _ = fc(x => x)
-// console.log(['abc', 'abba', 'kayak'].map($eq(_.rev()).str()))
-// console.log([1, 2, 2, 4, 2, 4].map(_arr().fill(':)').map((x, i) => `${i} ${x}`).rev()))
-// console.log([[1, 2], [3, 4]].map(_[0]))
