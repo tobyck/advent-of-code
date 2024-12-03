@@ -42,24 +42,27 @@ Array.prototype.rev = function() { return this.slice().reverse() };
 Array.prototype.sorted = function(f) { return this.slice().sort(f) };
 Array.prototype.sum = function() { return this.reduce((acc, cur) => acc + cur) };
 Array.prototype.prod = function() { return this.reduce((acc, cur) => acc * cur) };
-Array.prototype.first = function() { return this[0] };
-Array.prototype.last = function() { return this[this.length - 1] };
+Array.prototype.first = function(n = null) { return n ? this.slice(0, n) : this[0] };
+Array.prototype.last = function(n = null) { return n ? this.slice(-n) : this[this.length - 1] };
 Array.prototype.nthlast = function(n) { return this[this.length - n] };
 Array.prototype.dropnth = function(i) { this.splice((i % this.length + this.length) % this.length, 1); return this };
 Array.prototype.droplast = function() { return this.dropnth(-1) };
 Array.prototype.len = function() { return this.length }
 Array.prototype.for = Array.prototype.forEach
-Array.prototype.uniq = function() { return [...new Set(this)] }
 Array.prototype.min = function() { return Math.min(...this.filter(isnum)) }
 Array.prototype.max = function() { return Math.max(...this.filter(isnum)) }
 Array.prototype.print = function() { console.log(this); return this; }
 Array.prototype.set = function() { return new Set(this) }
 Array.prototype.nsort = function() { return this.sort((a, b) => a - b) }
+Array.prototype.rsort = function() { return this.sort((a, b) => b - a) }
+Array.prototype.sortby = function(f) { return this.sort((a, b) => f(a) - f(b)) }
+Array.prototype.rsortby = function(f) { return this.sort((a, b) => f(b) - f(a)) }
 Array.prototype.append = function(x) { this.push(x); return this }
 Array.prototype.prepend = function(x) { this.unshift(x); return this }
 Array.prototype.alleq = function() { return this.every(v => eq(v, this[0])) }
 Array.prototype.mapi = function(f) { return this.map((_, i) => f(i)) }
 Array.prototype.indicies = function() { return range(this.length) }
+Array.prototype.uniq = function() { return new _Set(this) }
 
 Array.prototype.sliding = function(size = 2, loop = false) {
 	const x = loop ? this.concat(this.slice(0, size - 1)) : this
@@ -127,8 +130,8 @@ String.prototype.nums = function() { return this.match(/\d+(\.\d+)?/g).map(x => 
 String.prototype.chars = function() { return this.split("") }
 String.prototype.lines = function() { return this.split("\n") }
 String.prototype.words = function() { return this.split(/\s+/g) }
-String.prototype.uniq = function() { return [...new Set(this)] }
-String.prototype.rev = function() { return this.split("").rev().join("") }
+String.prototype.uniq = function() { return this.chars().uniq() }
+String.prototype.rev = function() { return this.chars().rev().join("") }
 String.prototype.digits = function() { return this.split("").map(x => x.int()).filter(x => x !== null) }
 String.prototype.first = function() { return this[0] }
 String.prototype.last = function() { return this[this.length - 1] }
@@ -177,7 +180,6 @@ Number.prototype.exp = function(e, m = null) {
 }
 Number.prototype.absdiff = function(n) { return Math.abs(this - n) }
 Number.prototype.floordiv = function(n) { return Math.floor(this / n) }
-Number.prototype.eq = function(n) { return this.valueOf() === n }
 Number.prototype.gt = function(n) { return this.valueOf() > n }
 Number.prototype.lt = function(n) { return this.valueOf() < n }
 Number.prototype.gte = function(n) { return this.valueOf() >= n }
@@ -215,22 +217,18 @@ Set.prototype.intersect = function(other) { return new Set(this).arr().filter(x 
 Set.prototype.diff = function(other) { return new Set(this).arr().filter(x => !other.set().has(x)); }
 
 class _Set extends Set {
-    constructor(iterable) {
-        super(iterable);
+    constructor(iterable = []) {
+		super()
+        for (const item of iterable) this.add(item)
     }
 
     add(item) { super.add((JSON.stringify(item))) }
     has(item) { return super.has(JSON.stringify(item)) }
     delete(item) { return super.delete(JSON.stringify(item)) }
 
-    print() {
-        console.log(this.arr());
-        return this;
-    }
-
     *[Symbol.iterator]() {
-		for (const item of this)
-			yield JSON.parse(item);
+		for (const item of super[Symbol.iterator]())
+			yield JSON.parse(item)
     }
 }
 
@@ -240,6 +238,12 @@ Boolean.prototype.not = function() { return !this.valueOf() }
 Boolean.prototype.str = function() { return this.valueOf().toString() }
 Boolean.prototype.int = function() { return this.valueOf() ? 1 : 0 }
 Boolean.prototype.print = function() { console.log(this.valueOf()); return this.valueOf(); }
+
+globalThis.consts = {
+	alpha: "abcdefghijklmnopqrstuvwxyz",
+	upperalpha: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+	digitwords: "zero one two three four five six seven eight nine".ssv()
+}
 
 globalThis.eq = (a, b) => {
     if (isarr(a) && isarr(b)) {
@@ -254,6 +258,13 @@ globalThis.eq = (a, b) => {
     return false;
 };
 
+globalThis.inside = (a, b) => {
+	if (typeof b === "string") b = b.split("")
+	return b.includes(a)
+}
+
+globalThis.countin = (a, b) => b.count(a)
+
 // type checks
 globalThis.isint = Number.isInteger;
 globalThis.isfloat = x => typeof x === "number" && !Number.isInteger(x);
@@ -262,9 +273,9 @@ globalThis.isarr = Array.isArray;
 globalThis.isstr = x => typeof x === "string";
 
 // type conversions
-globalThis.int = x => parseInt(x);
+globalThis.int = x => parseInt(x.match(/-?\d+/));
 globalThis.intbasen = (x, n) => parseInt(x, n);
-globalThis.float = x => parseFloat(x);
+globalThis.float = x => parseFloat(x.match(/-?\d+\.\d+/));
 globalThis.num = x => {
     try {
         return Number(x)
@@ -317,14 +328,18 @@ const funcChain = func => getterProxy(
 	func, 
 	(target, prop) => {
 		if (isint(num(prop))) return funcChain(mainArg => target(mainArg)[prop])
-		else return (...args) => funcChain(mainArg => target(mainArg)[prop](...args))
+		else return (...args) => funcChain(mainArg => {
+			const soFar = target(mainArg)
+			if (typeof soFar[prop] === "function") return soFar[prop](...args) 
+			else return globalThis[prop](soFar, ...args)
+		})
 	}
 );
 
 const getterChain = func => getterProxy(func, (target, prop) => getterChain(x => target(x)[prop]));
 
-export const it = funcChain(x => x);
-export const get = getterChain(x => x);
+const it = funcChain(x => x);
+const get = getterChain(x => x);
 
 // turn methods into functions as well
 
@@ -337,11 +352,8 @@ for (const type of [Number, String, Array, Set, Object])
 
 // curry
 for (let [name, func] of globalThis.entries()) {
-    if (typeof func === "function" && name[0] == "_") {
-		name = name.slice(1)
-
-		// first arg curried
-        it[name] = (...args) => funcChain(x => func(x, ...args))
+    if (typeof func === "function") {
+		if (name[0] === "_") name = name.slice(1)
 
 		// first arg curried, but takes args as functions
         globalThis["$" + name] = (...funcs) => {
@@ -356,3 +368,5 @@ for (let [name, func] of globalThis.entries()) {
 		globalThis["$$" + name] = () => funcChain(args => func(...args))
     }
 }
+
+export { it, get, _Set }
