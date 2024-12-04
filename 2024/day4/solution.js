@@ -15,7 +15,7 @@ let d = ls => {
 	return ret
 }
 
-// print(d(lines).count("")) // part 1
+print(d(lines).map(f).sum() + o) // part 1
 
 let t = 0
 for (let r = 1; r < lines.length - 1; r++) {
@@ -23,7 +23,7 @@ for (let r = 1; r < lines.length - 1; r++) {
 		if (lines[r][c] == "A") {
 			if (
 				((lines[r-1][c-1] == "M" && lines[r+1][c+1] == "S") || (lines[r-1][c-1] == "S" && lines[r+1][c+1] == "M")) &&
-				((lines[r-1][c+1] == "M" && lines[r+1][c-1] == "S") || (lines[r-1][c-1] == "S" && lines[r+1][c-1] == "M"))
+				((lines[r-1][c+1] == "M" && lines[r+1][c-1] == "S") || (lines[r-1][c+1] == "S" && lines[r+1][c-1] == "M"))
 			) t++;
 		}
 	}
