@@ -152,7 +152,6 @@ String.prototype.floats = function() { return this.match(/\d+(\.\d+)?/g).map(x =
 String.prototype.nums = function() { return this.match(/\d+(\.\d+)?/g).map(x => x.num()) }
 String.prototype.chars = function() { return this.split("") }
 String.prototype.lines = function() { return this.split("\n") }
-String.prototype.words = function() { return this.split(/\s+/g) }
 String.prototype.uniq = function() { return this.chars().uniq() }
 String.prototype.rev = function() { return this.chars().rev().join("") }
 String.prototype.digits = function() { return this.split("").map(x => x.int()).filter(x => x !== null) }
@@ -162,6 +161,8 @@ String.prototype.len = function() { return this.length }
 String.prototype.at = function(i) { return this.split("").at(i) }
 String.prototype.csv = function() { return this.split(",").map(x => x.trim()) }
 String.prototype.ssv = function() { return this.split(/\s+/).map(x => x.trim()) }
+String.prototype.words = String.prototype.ssv
+String.prototype.groups = function() { return this.split("\n\n") }
 String.prototype.isDigit = function() { return /^\d$/.test(this) }
 String.prototype.print = function() { console.log(this.valueOf()); return this.valueOf(); }
 String.prototype.code = function() { return this.charCodeAt(0) }
@@ -426,9 +427,8 @@ for (let [name, func] of globalThis.entries()) {
     }
 }
 
-const getInput = () => {
-	let input = readFileSync(process.argv[2], "utf8");
-	return { input, lines: input.lines(), chs: input.chars() }
-}
+globalThis.input = readFileSync(process.argv[2], "utf8").trim("\n");
+globalThis.groups = input.groups()
+globalThis.lines = input.lines()
 
-export { getInput, it, get, _Set }
+export { it, get, _Set }
