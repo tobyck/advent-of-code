@@ -24,6 +24,8 @@
  * All of which are chainable like with `it`.
  */
 
+import { readFileSync } from "fs";
+
 globalThis.range = function(a, b = 0, step = 1) {
 	let start = 0, end = a
 	if (arguments.length > 1) {
@@ -47,6 +49,7 @@ Array.prototype.last = function(n = null) { return n ? this.slice(-n) : this[thi
 Array.prototype.nthlast = function(n) { return this[this.length - n] };
 Array.prototype.dropnth = function(i) { this.splice((i % this.length + this.length) % this.length, 1); return this };
 Array.prototype.droplast = function() { return this.dropnth(-1) };
+Array.prototype.dl = Array.prototype.droplast
 Array.prototype.len = function() { return this.length }
 Array.prototype.for = Array.prototype.forEach
 Array.prototype.min = function() { return Math.min(...this.filter(isnum)) }
@@ -63,6 +66,7 @@ Array.prototype.alleq = function() { return this.every(v => eq(v, this[0])) }
 Array.prototype.mapi = function(f) { return this.map((_, i) => f(i)) }
 Array.prototype.indicies = function() { return range(this.length) }
 Array.prototype.uniq = function() { return new _Set(this) }
+Array.prototype.dedup = function() { return this.uniq().arr() }
 
 Array.prototype.sliding = function(size = 2, loop = false) {
 	const x = loop ? this.concat(this.slice(0, size - 1)) : this
@@ -74,6 +78,13 @@ Array.prototype.chunks = function(size = 2) {
 	for (let i = 0; i < this.length; i += size) {
 		ret.push(this.slice(i, i + size))
 	}
+	return ret
+}
+
+Array.prototype.everyn = function(n, start = 0) {
+	const ret = [];
+	for (let i = start; i < this.length; i += n)
+		ret.push(this[i])
 	return ret
 }
 
@@ -98,9 +109,21 @@ Array.prototype.at = function(i) {
     }
 }
 
-Array.prototype.count = function(c) {
-	if (typeof c === "function") return this.filter(x => c(x)).length;
-	else return this.filter(x => eq(x, c)).length;
+Array.prototype.count = function(c, multiValue = false, overlapping = true) {
+	if (typeof c === "function") return this.filter(c).length;
+	else if (!multiValue) return this.filter(x => eq(x, c)).length;
+	else if (Array.isArray(c)) {
+		let count = 0
+		for (let i = 0; i < this.length;) {
+			if (eq(this.slice(i, i + c.length), c)) {
+				count++
+				i += c.length
+			} else i++
+		}
+		return count
+	} else {
+		throw new TypeError(`Invalid arg to Array.count: ${c}`)
+	}
 }
 
 Array.prototype.filterout = function(f) {
@@ -137,11 +160,16 @@ String.prototype.first = function() { return this[0] }
 String.prototype.last = function() { return this[this.length - 1] }
 String.prototype.len = function() { return this.length }
 String.prototype.at = function(i) { return this.split("").at(i) }
-String.prototype.count = function(x) { return this.split("").count(x) }
 String.prototype.csv = function() { return this.split(",").map(x => x.trim()) }
 String.prototype.ssv = function() { return this.split(/\s+/).map(x => x.trim()) }
 String.prototype.isDigit = function() { return /^\d$/.test(this) }
 String.prototype.print = function() { console.log(this.valueOf()); return this.valueOf(); }
+String.prototype.code = function() { return this.charCodeAt(0) }
+
+String.prototype.count = function(x, overlapping = true) {
+	if (typeof x === "string") x = x.chars()
+	return this.chars().count(x, true, overlapping)
+}
 
 // number methods
 
@@ -232,6 +260,36 @@ class _Set extends Set {
     }
 }
 
+// 2d vector
+
+class Vec {
+	constructor(x = 0, y = 0) {
+		this.x = x
+		this.y = y
+		this.str = this.toString
+	}
+
+	up(n = 1) { this.y -= n; return this }
+	down(n = 1) { this.y += n; return this }
+	left(n = 1) { this.x -= n; return this }
+	right(n = 1) { this.x += n; return this }
+	
+	add(other) {
+		this.x += other.x
+		this.y += other.y
+	}
+
+	get size() {
+		return Math.hypot(this.x, this.y)
+	}
+
+	toString() {
+		return `(${this.x}, ${this.y})`
+	}
+}
+
+globalThis.vec = (x, y) => new Vec(x, y)
+
 // boolean methods
 
 Boolean.prototype.not = function() { return !this.valueOf() }
@@ -259,11 +317,10 @@ globalThis.eq = (a, b) => {
 };
 
 globalThis.inside = (a, b) => {
-	if (typeof b === "string") b = b.split("")
 	return b.includes(a)
 }
 
-globalThis.countin = (a, b) => b.count(a)
+globalThis.countin = (a, b, ...opts) => b.count(a, ...opts)
 
 // type checks
 globalThis.isint = Number.isInteger;
@@ -271,6 +328,7 @@ globalThis.isfloat = x => typeof x === "number" && !Number.isInteger(x);
 globalThis.isnum = x => typeof x === "number";
 globalThis.isarr = Array.isArray;
 globalThis.isstr = x => typeof x === "string";
+globalThis.type = x => typeof x
 
 // type conversions
 globalThis.int = x => parseInt(x.match(/-?\d+/));
@@ -322,11 +380,8 @@ globalThis.bfs = (start, end, neighbours) => {
 
 // proxies
 
-const getterProxy = (func, getter) => new Proxy(func, { get: getter });
-
-const funcChain = func => getterProxy(
-	func, 
-	(target, prop) => {
+const funcChain = func => new Proxy(func, {
+	get: (target, prop) => {
 		if (isint(num(prop))) return funcChain(mainArg => target(mainArg)[prop])
 		else return (...args) => funcChain(mainArg => {
 			const soFar = target(mainArg)
@@ -334,12 +389,14 @@ const funcChain = func => getterProxy(
 			else return globalThis[prop](soFar, ...args)
 		})
 	}
-);
+});
 
-const getterChain = func => getterProxy(func, (target, prop) => getterChain(x => target(x)[prop]));
+const getterChain = func => new Proxy(func, {
+	get: (target, prop) => getterChain(x => target(x)[prop])
+});
 
-const it = funcChain(x => x);
-const get = getterChain(x => x);
+const it = funcChain(x => x)
+const get = getterChain(x => x)
 
 // turn methods into functions as well
 
@@ -369,4 +426,9 @@ for (let [name, func] of globalThis.entries()) {
     }
 }
 
-export { it, get, _Set }
+const getInput = () => {
+	let input = readFileSync(process.argv[2], "utf8");
+	return { input, lines: input.lines(), chs: input.chars() }
+}
+
+export { getInput, it, get, _Set }
