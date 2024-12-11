@@ -1,27 +1,5 @@
 /*
- * Author: Toby Connor-Kebbell
- * Date: 12/2023
- *
- * `it` can be used to make tacit function chains:
- *     [12, 5, 7, 4, 10, 9].map(it.mul(Math.random()).str().rev()[0].int())
- *     multiplies each number by a random float, converts it to a string,
- *     reverses it, gets the first char, and converts that back to an int.
- *     When the first function in the chain isn't also global, the `it.` can
- *     be omitted.
- *
- * `get` works similarly, but the chain can only get properties:
- *     get.some_prop[3].x is a function which gets the "x" property of the item
- *     at index 3 in the "some_prop" field.
- *
- * All methods have an global variant prefixed with an underscore:
- *     [1, 2, 3].sum() can also be _sum([1, 2, 3])
- *
- * All global functions (including those derived from methods like .sum()) have
- * three other variants. using `eq` as an example, these are:
- *     it.eq(x) -> x => eq(x, y)
- *     $eq(f) -> x => eq(x, f(x))
- *     $$eq() -> args => eq(...args)
- * All of which are chainable like with `it`.
+ * THIS IS BUGGY AND NOT BEING USED
  */
 
 import { readFileSync } from "fs";
@@ -109,7 +87,7 @@ Array.prototype.at = function(i) {
     }
 }
 
-Array.prototype.count = function(c, multiValue = false, overlapping = true) {
+Array.prototype.count = function(c, multiValue = false) {
 	if (typeof c === "function") return this.filter(c).length;
 	else if (!multiValue) return this.filter(x => eq(x, c)).length;
 	else if (Array.isArray(c)) {
@@ -122,7 +100,7 @@ Array.prototype.count = function(c, multiValue = false, overlapping = true) {
 		}
 		return count
 	} else {
-		throw new TypeError(`Invalid arg to Array.count: ${c}`)
+		throw new TypeError(`Invalid arg to iterable.count: ${c}`)
 	}
 }
 
@@ -196,7 +174,7 @@ Number.prototype.add = function(n) { return this + n }
 Number.prototype.sub = function(n) { return this - n }
 Number.prototype.mul = function(n) { return this * n }
 Number.prototype.div = function(n) { return this / n }
-Number.prototype.mov = function(n) { return this % n }
+Number.prototype.mod = function(n) { return this % n }
 Number.prototype.exp = function(e, m = null) {
 	if (m) {
 		// naive solution but it does the job
@@ -278,6 +256,11 @@ class Vec {
 	add(other) {
 		this.x += other.x
 		this.y += other.y
+		return this
+	}
+
+	clone() {
+		return new Vec(this.x, this.y)
 	}
 
 	get size() {
@@ -286,6 +269,10 @@ class Vec {
 
 	toString() {
 		return `(${this.x}, ${this.y})`
+	}
+
+	arr() {
+		return [this.x, this.y]
 	}
 }
 
